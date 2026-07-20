@@ -1,4 +1,4 @@
-"use client"; // Tambahkan ini
+'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation'; // Tambahkan ini
@@ -7,7 +7,7 @@ export default function Footer() {
   const pathname = usePathname(); // Panggil fungsinya
 
   // Jika URL saat ini adalah '/login', jangan tampilkan Footer
-  if (pathname === '/login') {
+  if (pathname.startsWith('/admin') || pathname.startsWith('/login')) {
     return null;
   }
 

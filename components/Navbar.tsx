@@ -1,4 +1,4 @@
-"use client"; // Wajib ditambahkan agar bisa mendeteksi rute
+'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation'; // Import pendeteksi rute
@@ -7,7 +7,7 @@ export default function Navbar() {
   const pathname = usePathname(); // Panggil fungsinya
 
   // Jika URL saat ini adalah '/login', kembalikan nilai null (jangan tampilkan Navbar)
-  if (pathname === '/login') {
+  if (pathname.startsWith('/admin') || pathname.startsWith('/login')) {
     return null;
   }
 
