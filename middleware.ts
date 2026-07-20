@@ -12,12 +12,12 @@ export function middleware(request: NextRequest) {
 
   // 3. Logika Proteksi:
   // Jika pengguna mencoba masuk ke rute yang diawali dengan "/admin" TAPI belum login
-  if (request.nextUrl.pathname.startsWith('/admin') && !isAuthenticated) {
+//   if (request.nextUrl.pathname.startsWith('/admin') && !isAuthenticated) {
     
-    // Alihkan (redirect) mereka secara paksa ke halaman login
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
+//     // Alihkan (redirect) mereka secara paksa ke halaman login
+//     url.pathname = '/login';
+//     return NextResponse.redirect(url);
+//   }
 
   // Jika aman, biarkan pengguna melanjutkan perjalanan ke halaman yang dituju
   return NextResponse.next();
