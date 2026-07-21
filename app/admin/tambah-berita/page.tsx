@@ -1,16 +1,30 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 
 export default function TambahBerita() {
     // State untuk mengontrol apakah modal terbuka atau tertutup
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  // Fungsi pura-pura saat tombol konfirmasi hapus ditekan
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // Ref untuk menghubungkan klik div ke input file yang disembunyikan
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fungsi untuk menangani saat gambar dipilih
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Membuat URL lokal sementara untuk pratinjau
+      const imageUrl = URL.createObjectURL(file);
+      setImagePreview(imageUrl);
+    }
+  };
+
   const handleDeleteConfirm = () => {
-    alert("Draf berhasil dihapus! (Ini hanya simulasi UI)");
-    setIsDeleteModalOpen(false); // Tutup modal setelah selesai
+    alert("Draf berhasil dihapus!");
+    setIsDeleteModalOpen(false);
   };
 
   return (
@@ -62,18 +76,56 @@ export default function TambahBerita() {
             <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">
               Gambar Utama
             </label>
-            <div className="w-full h-64 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center justify-center text-gray-400 hover:bg-gray-100 hover:border-[#facc15] transition-colors cursor-pointer relative overflow-hidden group">
-              {/* Dummy Image Background (Samar) */}
-              <img src="https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?q=80&w=800&auto=format&fit=crop" alt="Bg" className="absolute inset-0 w-full h-full object-cover opacity-20 grayscale group-hover:scale-105 transition-transform duration-500" />
+            
+            {/* Input file asli (Disembunyikan secara visual) */}
+            <input 
+              type="file" 
+              accept="image/*" 
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              className="hidden" 
+            />
+
+            <div 
+              onClick={() => fileInputRef.current?.click()} // Membuka dialog file saat div diklik
+              className="w-full h-64 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center justify-center text-gray-400 hover:bg-gray-100 hover:border-[#facc15] transition-colors cursor-pointer relative overflow-hidden group"
+            >
+              {/* Jika ada imagePreview, tampilkan gambarnya. Jika tidak, tampilkan background samar. */}
+              {imagePreview ? (
+                <img 
+                  src={imagePreview} 
+                  alt="Pratinjau" 
+                  className="absolute inset-0 w-full h-full object-cover z-10" 
+                />
+              ) : (
+                <img 
+                  src="https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?q=80&w=800&auto=format&fit=crop" 
+                  alt="Bg" 
+                  className="absolute inset-0 w-full h-full object-cover opacity-20 grayscale group-hover:scale-105 transition-transform duration-500" 
+                />
+              )}
               
-              <div className="relative z-10 flex flex-col items-center bg-white/80 p-4 rounded-lg backdrop-blur-sm">
-                <svg className="w-8 h-8 mb-2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p className="text-sm font-bold text-gray-700">Klik untuk unggah atau seret & lepas</p>
-                <p className="text-xs text-gray-500 mt-1">Ukuran disarankan: 1600x800px (Maks 5MB)</p>
-              </div>
+              {/* Instruksi Teks (Sembunyikan jika gambar sudah dipilih agar tidak menutupi) */}
+              {!imagePreview && (
+                <div className="relative z-10 flex flex-col items-center bg-white/80 p-4 rounded-lg backdrop-blur-sm">
+                  <svg className="w-8 h-8 mb-2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-sm font-bold text-gray-700">Klik untuk unggah atau seret & lepas</p>
+                  <p className="text-xs text-gray-500 mt-1">Ukuran disarankan: 1600x800px (Maks 5MB)</p>
+                </div>
+              )}
             </div>
+            
+            {/* Tombol Hapus Gambar (Muncul hanya jika gambar sudah dipilih) */}
+            {imagePreview && (
+              <button 
+                onClick={() => setImagePreview(null)}
+                className="mt-3 text-xs font-bold text-red-600 hover:underline"
+              >
+                Hapus Gambar
+              </button>
+            )}
           </div>
 
           {/* Text Editor (Rich Text) */}
