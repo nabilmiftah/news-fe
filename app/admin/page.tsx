@@ -1,233 +1,273 @@
-export default function AdminDashboard() {
-  return (
-    <div className="max-w-7xl mx-auto">
+"use client";
+
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
+
+export default function DashboardPage() {
+  const [beritaTerbaru, setBeritaTerbaru] = useState<any[]>([]);
+  const [totalArtikel, setTotalArtikel] = useState(0);
+  const [kategoriStats, setKategoriStats] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // State untuk Modal Hapus
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [beritaToHapus, setBeritaToHapus] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Fungsi untuk memuat ulang semua data dasbor (diekstrak agar bisa dipanggil setelah hapus)
+  const fetchDashboardData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // 1. Mengambil data untuk Tabel
+      const { data: beritaData, error: beritaError } = await supabase
+        .from('berita')
+        .select(`id, judul, gambar_utama, status, created_at, penulis ( nama ), kategori ( nama )`)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (beritaError) throw beritaError;
+      setBeritaTerbaru(beritaData || []);
+
+      // 2. Mengambil total artikel dan kategori
+      const { data: allBeritaKat, count, error: countError } = await supabase
+        .from('berita')
+        .select('kategori ( nama )', { count: 'exact' });
+
+      if (countError) throw countError;
+      setTotalArtikel(count || 0);
+
+      // 3. Menghitung Persentase Kategori
+      if (allBeritaKat && count && count > 0) {
+        const perhitungan: Record<string, number> = {};
+        allBeritaKat.forEach((item: any) => {
+          const namaKat = item.kategori?.nama;
+          if (namaKat) perhitungan[namaKat] = (perhitungan[namaKat] || 0) + 1;
+        });
+
+        const hasilStatistik = Object.keys(perhitungan).map(nama => {
+          const jumlah = perhitungan[nama];
+          const persen = Math.round((jumlah / count) * 100);
+          return { nama, jumlah, persen: `${persen}%` };
+        }).sort((a, b) => b.jumlah - a.jumlah);
+
+        const paletWarna = ['bg-[#75621e]', 'bg-[#facc15]', 'bg-gray-400', 'bg-gray-300', 'bg-gray-200'];
+        const statistikFinal = hasilStatistik.slice(0, 5).map((stat, indeks) => ({
+          ...stat,
+          warna: paletWarna[indeks % paletWarna.length]
+        }));
+        setKategoriStats(statistikFinal);
+      } else {
+        setKategoriStats([]);
+      }
+    } catch (error: any) {
+      console.error("Gagal memuat data:", error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Fungsi Eksekusi Hapus Data ke Supabase
+  const confirmHapus = async () => {
+    if (!beritaToHapus) return;
+    setIsDeleting(true);
+    
+    try {
+      const { error } = await supabase
+        .from('berita')
+        .delete()
+        .eq('id', beritaToHapus);
+
+      if (error) throw error;
+
+      // Tutup modal dan muat ulang data statistik & tabel
+      setIsDeleteModalOpen(false);
+      setBeritaToHapus(null);
+      fetchDashboardData(); 
       
-      {/* HEADER DASBOR */}
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-extrabold text-[#75621e]">Ringkasan</h2>
-        
-        <div className="flex items-center gap-6">
-          <div className="relative">
+    } catch (error: any) {
+      alert("Gagal menghapus berita: " + error.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const formatTanggal = (tanggalString: string) => {
+    const date = new Date(tanggalString);
+    return new Intl.DateTimeFormat('id-ID', { 
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    }).format(date);
+  };
+
+  const getStatusStyle = (status: string) => {
+    switch(status.toLowerCase()) {
+      case 'diterbitkan': return 'bg-green-100 text-green-700';
+      case 'draf': return 'bg-gray-100 text-gray-700';
+      case 'tinjauan': return 'bg-yellow-100 text-yellow-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  return (
+    <div className="max-w-screen-2xl mx-auto relative">
+      
+      {/* HEADER RINGKASAN */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <h1 className="text-3xl font-extrabold text-[#75621e]">Dasbor</h1>
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <div className="relative flex-1 md:w-64">
+            <svg className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
             <input 
-              type="text" 
-              placeholder="Cari artikel berita" 
-              className="pl-10 pr-4 py-2 bg-gray-100 border-none rounded-lg text-sm w-64 focus:ring-2 focus:ring-[#facc15] outline-none"
+              type="text" placeholder="Cari artikel berita" 
+              className="w-full pl-10 pr-4 py-2 bg-gray-100 border-none rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#facc15]"
             />
-            <svg className="w-4 h-4 text-gray-500 absolute left-4 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </div>
-          <div className="relative cursor-pointer">
-            <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#f9f9f9]"></span>
-          </div>
-          <button className="bg-[#75621e] text-white font-bold px-5 py-2 rounded-lg text-sm hover:bg-[#5c4a11] transition-colors">
+          <button className="bg-[#75621e] text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-[#5c4a11] transition-colors whitespace-nowrap">
             Portal Admin
           </button>
         </div>
       </div>
 
-      {/* KARTU RINGKASAN */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 bg-[#facc15] rounded-lg flex items-center justify-center text-gray-900">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            </div>
-            <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded">+12%</span>
-          </div>
-          <p className="text-sm text-gray-500 font-bold mb-1">Total Artikel</p>
-          <h3 className="text-3xl font-extrabold text-gray-900">1.482</h3>
-        </div>
-        
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 bg-[#facc15] rounded-lg flex items-center justify-center text-gray-900">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-            </div>
-            <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded">+24%</span>
-          </div>
-          <p className="text-sm text-gray-500 font-bold mb-1">Total Kunjungan</p>
-          <h3 className="text-3xl font-extrabold text-gray-900">842,1K</h3>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 bg-[#facc15] rounded-lg flex items-center justify-center text-gray-900">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-            </div>
-            <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">-3%</span>
-          </div>
-          <p className="text-sm text-gray-500 font-bold mb-1">Komentar</p>
-          <h3 className="text-3xl font-extrabold text-gray-900">12.302</h3>
-        </div>
-
-        <div className="bg-[#facc15] p-6 rounded-xl shadow-sm border border-[#eab308]">
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 bg-transparent border border-gray-900/20 rounded-lg flex items-center justify-center text-gray-900">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-            </div>
-          </div>
-          <p className="text-sm text-[#75621e] font-bold mb-1">Langganan Premium</p>
-          <h3 className="text-3xl font-extrabold text-gray-900">4.209</h3>
-        </div>
-      </div>
-
-      {/* GRAFIK & KATEGORI */}
+      {/* AREA STATISTIK */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        
-        {/* Chart Area */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h3 className="text-xl font-extrabold text-gray-900">Analisis Lalu Lintas</h3>
-              <p className="text-sm text-gray-500">Pengunjung unik harian selama 30 hari terakhir</p>
-            </div>
-            <div className="bg-gray-100 rounded-full flex p-1">
-              <button className="text-xs font-bold px-4 py-1.5 rounded-full text-gray-600">Mingguan</button>
-              <button className="text-xs font-bold px-4 py-1.5 rounded-full bg-[#75621e] text-white shadow-sm">Bulanan</button>
-            </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-8 shadow-sm flex flex-col justify-center items-center text-center">
+          <div className="w-16 h-16 bg-[#facc15] rounded-full flex items-center justify-center text-gray-900 mb-6 shadow-md">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           </div>
-          
-          {/* Mockup Grafik Batang */}
-          <div className="flex items-end justify-between h-48 border-b border-gray-200 pb-2 gap-2">
-            {[40, 60, 30, 90, 50, 40, 80, 50].map((height, i) => (
-              <div key={i} className="w-full bg-[#facc15] rounded-t-sm hover:opacity-80 transition-opacity" style={{ height: `${height}%` }}></div>
-            ))}
-          </div>
-          <div className="flex justify-between text-[10px] text-gray-400 font-bold mt-3 uppercase tracking-wider">
-            <span>HARI 1</span>
-            <span>HARI 15</span>
-            <span>HARI 30</span>
-          </div>
+          <p className="text-sm font-bold text-gray-500 tracking-widest uppercase mb-2">Total Artikel Dikelola</p>
+          <p className="text-6xl font-extrabold text-gray-900">{isLoading ? '...' : totalArtikel}</p>
         </div>
 
-        {/* Kategori Area */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-          <div>
-            <h3 className="text-xl font-extrabold text-gray-900 mb-6">Kategori</h3>
-            <div className="space-y-5">
-              <div>
-                <div className="flex justify-between text-xs font-bold text-gray-900 mb-2">
-                  <span>Teknologi</span><span>42%</span>
+        <div className="lg:col-span-2 bg-white border border-gray-100 rounded-xl p-8 shadow-sm flex flex-col">
+          <h2 className="text-xl font-extrabold text-gray-900 mb-6">Distribusi Kategori Artikel</h2>
+          {isLoading ? (
+            <div className="flex-1 flex items-center justify-center text-gray-400 font-medium">Menghitung statistik...</div>
+          ) : kategoriStats.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-gray-400 font-medium">Belum ada artikel untuk dihitung.</div>
+          ) : (
+            <div className="space-y-6 flex-1 justify-center flex flex-col">
+              {kategoriStats.map((kat, idx) => (
+                <div key={idx}>
+                  <div className="flex justify-between text-sm font-bold text-gray-900 mb-2">
+                    <span>{kat.nama} <span className="text-gray-400 font-normal text-xs ml-1">({kat.jumlah} artikel)</span></span>
+                    <span>{kat.persen}</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div className={`${kat.warna} h-3 rounded-full transition-all duration-1000 ease-out`} style={{ width: kat.persen }}></div>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-[#75621e] h-2 rounded-full" style={{ width: '42%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs font-bold text-gray-900 mb-2">
-                  <span>Politik</span><span>28%</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-gray-500 h-2 rounded-full" style={{ width: '28%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs font-bold text-gray-900 mb-2">
-                  <span>Ekonomi</span><span>15%</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-gray-400 h-2 rounded-full" style={{ width: '15%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs font-bold text-gray-900 mb-2">
-                  <span>Olahraga</span><span>10%</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div className="bg-gray-400 h-2 rounded-full" style={{ width: '10%' }}></div>
-                </div>
-              </div>
+              ))}
             </div>
-          </div>
-          <button className="w-full border border-gray-300 text-gray-900 font-bold py-2.5 rounded-lg text-sm mt-6 hover:bg-gray-50 transition-colors">
-            Lihat Laporan Detail
-          </button>
+          )}
         </div>
       </div>
 
-      {/* TABEL BERITA TERBARU */}
+      {/* TABEL BERITA */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 flex justify-between items-center border-b border-gray-100">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
           <div>
-            <h3 className="text-xl font-extrabold text-gray-900">Edit Berita Terbaru</h3>
-            <p className="text-sm text-gray-500">Lacak aktivitas edit dan konten yang diterbitkan</p>
+            <h2 className="text-xl font-extrabold text-gray-900">Edit Berita Terbaru</h2>
+            <p className="text-sm text-gray-500 mt-1">Lacak aktivitas edit dan konten yang diterbitkan</p>
           </div>
-          <button className="text-gray-400 hover:text-gray-900">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
-          </button>
         </div>
-        
+
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
-              <tr className="bg-[#fbfaf8] text-[10px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                <th className="px-6 py-4">JUDUL ARTIKEL</th>
-                <th className="px-6 py-4">EDITOR</th>
-                <th className="px-6 py-4">STATUS</th>
-                <th className="px-6 py-4">TERAKHIR DIPERBARUI</th>
-                <th className="px-6 py-4 text-right">AKSI</th>
+              <tr className="bg-gray-50 text-xs font-bold text-gray-500 tracking-wider uppercase border-b border-gray-100">
+                <th className="p-4">Judul Artikel</th>
+                <th className="p-4">Kategori</th>
+                <th className="p-4">Status</th>
+                <th className="p-4">Terakhir Diperbarui</th>
+                <th className="p-4 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 flex items-center gap-3">
-                  <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=100&auto=format&fit=crop" alt="Thumb" className="w-12 h-8 object-cover rounded" />
-                  <span className="font-bold text-sm text-gray-900">Prosesor Kuantum Baru Siap<br/>Merevolusi Industri Teknologi</span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#facc15]"></span> Sarah Jenkins
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2.5 py-1 rounded uppercase">DITERBITKAN</span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">2 menit yang lalu</td>
-                <td className="px-6 py-4 text-right"></td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 flex items-center gap-3">
-                  <img src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=100&auto=format&fit=crop" alt="Thumb" className="w-12 h-8 object-cover rounded" />
-                  <span className="font-bold text-sm text-gray-900">KTT Global Membahas<br/>Perubahan Kebijakan Iklim</span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-gray-200"></span> Mark Henderson
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="bg-gray-100 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded uppercase">DRAF</span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">15 menit yang lalu</td>
-                <td className="px-6 py-4 text-right"></td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 flex items-center gap-3">
-                  <img src="https://images.unsplash.com/photo-1518623489648-a173ef7824f3?q=80&w=100&auto=format&fit=crop" alt="Thumb" className="w-12 h-8 object-cover rounded" />
-                  <span className="font-bold text-sm text-gray-900">Kemenangan Tim Kuda Hitam<br/>di Final Kejuaraan Regional</span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-gray-200"></span> Elena Rossi
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className="bg-[#facc15] text-gray-900 text-[10px] font-bold px-2.5 py-1 rounded uppercase">TINJAUAN</span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-600">1 jam yang lalu</td>
-                <td className="px-6 py-4 text-right"></td>
-              </tr>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-gray-500 font-medium">Memuat data dasbor...</td>
+                </tr>
+              ) : beritaTerbaru.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-gray-500 font-medium">Belum ada berita yang ditulis.</td>
+                </tr>
+              ) : (
+                beritaTerbaru.map((berita) => (
+                  <tr key={berita.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="p-4 flex items-center gap-4">
+                      <div className="w-16 h-10 rounded-md bg-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                        {berita.gambar_utama ? (
+                          <img src={berita.gambar_utama} alt={berita.judul} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] font-medium text-gray-400">No Img</span>
+                        )}
+                      </div>
+                      <span className="font-bold text-gray-900 line-clamp-2 max-w-xs">{berita.judul}</span>
+                    </td>
+                    <td className="p-4"><span className="text-sm font-medium text-gray-700 whitespace-nowrap">{berita.kategori?.nama || 'Tanpa Kategori'}</span></td>
+                    <td className="p-4">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider whitespace-nowrap ${getStatusStyle(berita.status)}`}>
+                        {berita.status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-gray-500 whitespace-nowrap">{formatTanggal(berita.created_at)}</td>
+                    <td className="p-4 text-center">
+                      <div className="flex justify-center items-center gap-4">
+                        <Link href={`/admin/edit-berita/${berita.id}`} className="text-sm font-bold text-[#75621e] hover:underline">
+                          Edit
+                        </Link>
+                        {/* Tombol Hapus Baru */}
+                        <button 
+                          onClick={() => { setBeritaToHapus(berita.id); setIsDeleteModalOpen(true); }}
+                          className="text-sm font-bold text-red-600 hover:underline"
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-        
-        <div className="bg-[#fbfaf8] p-4 text-center border-t border-gray-100">
-          <button className="text-xs font-bold text-[#75621e] hover:underline uppercase tracking-wider">
-            Lihat Semua Artikel
-          </button>
-        </div>
       </div>
 
+      {/* MODAL KONFIRMASI HAPUS */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </div>
+            <h3 className="text-xl font-extrabold text-gray-900 mb-2">Hapus Berita?</h3>
+            <p className="text-gray-500 text-sm mb-6">Tindakan ini permanen. Artikel yang dihapus tidak dapat dikembalikan lagi ke dalam sistem.</p>
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={confirmHapus}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
+              >
+                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 }
