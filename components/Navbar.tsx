@@ -32,12 +32,6 @@ export default function Navbar() {
               <Link href="/kategori" className="text-gray-600 hover:text-gray-900 font-medium pb-1">
                 Kategori
               </Link>
-              <Link href="/politik" className="text-gray-600 hover:text-gray-900 font-medium pb-1">
-                Politik
-              </Link>
-              <Link href="/teknologi" className="text-gray-600 hover:text-gray-900 font-medium pb-1">
-                Teknologi
-              </Link>
             </div>
           </div>
 
