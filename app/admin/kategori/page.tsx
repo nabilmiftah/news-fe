@@ -68,7 +68,7 @@ export default function KategoriPage() {
     }
   };
 
-  // ================= FUNGSI EDIT =================
+ // ================= FUNGSI EDIT =================
   const openEditModal = (kat: any) => {
     setEditKategoriId(kat.id);
     setNamaKategoriEdit(kat.nama);
@@ -83,17 +83,34 @@ export default function KategoriPage() {
     const slugBaru = namaKategoriEdit.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
 
     try {
-      const { error } = await supabase
+      // Tambahkan .select() untuk mendeteksi apakah data benar-benar berubah di database
+      const { data, error } = await supabase
         .from('kategori')
         .update({ nama: namaKategoriEdit, slug: slugBaru })
-        .eq('id', editKategoriId);
+        .eq('id', editKategoriId)
+        .select();
 
       if (error) throw error;
 
+      // Jika Supabase mengembalikan data kosong, berarti ada masalah (kemungkinan RLS)
+      if (!data || data.length === 0) {
+        alert("Peringatan: Sistem gagal memperbarui data di Supabase. Pastikan kebijakan RLS (Row Level Security) untuk UPDATE di tabel 'kategori' sudah diaktifkan.");
+      } else {
+        // OPTIMISTIC UPDATE: Ubah data langsung di antarmuka React agar langsung terlihat
+        setKategori((prevKategori) => 
+          prevKategori.map((kat) => 
+            kat.id === editKategoriId 
+              ? { ...kat, nama: namaKategoriEdit, slug: slugBaru } 
+              : kat
+          )
+        );
+      }
+
+      // Bersihkan dan tutup modal
       setIsEditModalOpen(false);
       setEditKategoriId(null);
       setNamaKategoriEdit('');
-      fetchKategori();
+      
     } catch (error: any) {
       alert('Gagal memperbarui kategori: ' + error.message);
     } finally {
