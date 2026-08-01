@@ -1,61 +1,58 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase'; // Memanggil klien yang kita buat di Langkah 1
+import { supabase } from '@/lib/supabase';
 
-// Fungsi GET untuk menangani permintaan HTTP GET
 export async function GET() {
   try {
-    // Menjalankan kueri SQL: SELECT * FROM kategori ORDER BY id ASC
+    // Meminta seluruh data dari tabel 'kategori'
+    // Diurutkan berdasarkan nama abjad (ascending)
     const { data, error } = await supabase
       .from('kategori')
       .select('*')
-      .order('id', { ascending: true });
+      .order('nama', { ascending: true });
 
-    // Jika terjadi kesalahan dari Supabase
-    if (error) {
-      return NextResponse.json({ sukses: false, pesan: error.message }, { status: 500 });
-    }
+    if (error) throw error;
 
-    // Jika berhasil, kembalikan data dalam format JSON
+    // Mengembalikan data berformat JSON ke peminta (200 OK)
     return NextResponse.json({ sukses: true, data: data }, { status: 200 });
-    
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
-      { sukses: false, pesan: 'Terjadi kesalahan pada peladen' }, 
+      { sukses: false, pesan: error.message || 'Terjadi kesalahan saat memuat kategori' },
       { status: 500 }
     );
   }
 }
 
-// Fungsi POST untuk menambahkan kategori baru
 export async function POST(request: Request) {
   try {
-    // Menangkap data yang dikirim dari frontend (body request)
     const body = await request.json();
-    const { nama, slug } = body;
 
-    // Validasi sederhana
-    if (!nama || !slug) {
+    // Validasi input: Nama dan slug kategori wajib ada
+    if (!body.nama || !body.slug) {
       return NextResponse.json(
         { sukses: false, pesan: 'Nama dan slug kategori wajib diisi' },
         { status: 400 }
       );
     }
 
-    // Melakukan operasi INSERT ke tabel kategori di Supabase
+    // Melakukan operasi INSERT ke tabel 'kategori'
+    // Menghapus 'deskripsi' dan menyesuaikan dengan kolom yang ada (nama, slug)
     const { data, error } = await supabase
       .from('kategori')
-      .insert([{ nama: nama, slug: slug }])
-      .select(); // .select() berguna untuk mengembalikan data yang baru saja dimasukkan
+      .insert([
+        {
+          nama: body.nama,
+          slug: body.slug
+        }
+      ])
+      .select();
 
-    if (error) {
-      return NextResponse.json({ sukses: false, pesan: error.message }, { status: 500 });
-    }
+    if (error) throw error;
 
+    // Sukses menyimpan kategori baru (201 Created)
     return NextResponse.json({ sukses: true, data: data }, { status: 201 });
-
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
-      { sukses: false, pesan: 'Terjadi kesalahan saat memproses permintaan' },
+      { sukses: false, pesan: error.message || 'Terjadi kesalahan saat menambah kategori' },
       { status: 500 }
     );
   }

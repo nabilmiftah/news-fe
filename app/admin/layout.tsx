@@ -1,16 +1,62 @@
 "use client";
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { usePathname } from 'next/navigation'; // Tambahkan hook ini
+import { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const pathname = usePathname(); // Inisialisasi pathname untuk membaca URL saat ini
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // State untuk Autentikasi
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [adminName, setAdminName] = useState("Pengguna Admin");
+  const [adminEmail, setAdminEmail] = useState("");
 
   const closeSidebar = () => setIsSidebarOpen(false);
 
-  // Array menu untuk mempermudah render dan pengaturan active state
+  useEffect(() => {
+    // Fungsi Satpam: Mengecek sesi login
+    const cekSesiPengguna = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        // Tendang ke halaman login jika tidak ada sesi
+        if (error || !session) {
+          router.replace('/login');
+          return;
+        }
+
+        // Ambil data profil
+        const namaLengkap = session.user.user_metadata?.nama_lengkap || "Admin Redaksi";
+        setAdminName(namaLengkap);
+        setAdminEmail(session.user.email || "");
+        
+      } catch (err) {
+        console.error("Gagal memeriksa sesi:", err);
+        router.replace('/login');
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    cekSesiPengguna();
+  }, [router]);
+
+  // Fungsi Keluar (Logout)
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.push('/login');
+    } catch (error: any) {
+      alert("Gagal keluar: " + error.message);
+    }
+  };
+
+  // Array menu
   const menuItems = [
     {
       nama: "Dashboard",
@@ -40,6 +86,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )
     }
   ];
+
+  // Layar Pemuatan
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="w-12 h-12 border-4 border-[#facc15] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-500 font-bold animate-pulse">Memverifikasi akses aman...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-[#f9f9f9] relative overflow-hidden">
@@ -74,7 +130,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           
           <nav className="flex flex-col gap-2 px-4">
             {menuItems.map((item) => {
-              // Logika penentuan status aktif
               const isActive = item.href === '/admin' 
                 ? pathname === '/admin' 
                 : pathname.startsWith(item.href);
@@ -98,16 +153,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </nav>
         </div>
 
-        {/* Bagian Bawah: Profil & Keluar */}
+        {/* Bagian Bawah: Profil Dinamis & Keluar */}
         <div className="p-4 border-t border-gray-200">
-          <div className="bg-[#eae8e1] rounded-lg p-3 flex items-center gap-3 mb-3">
-            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop" alt="Admin" className="w-10 h-10 rounded-full object-cover" />
-            <div>
-              <p className="text-sm font-bold text-gray-900 leading-none">Pengguna Admin</p>
-              <p className="text-[10px] text-gray-500 mt-1">Editor Kabarin</p>
+          <div className="bg-[#eae8e1] rounded-lg p-3 flex items-center gap-3 mb-3 overflow-hidden">
+            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop" alt="Admin" className="w-10 h-10 rounded-full object-cover shrink-0" />
+            <div className="min-w-0"> {/* min-w-0 memastikan teks bisa dipotong jika terlalu panjang */}
+              <p className="text-sm font-bold text-gray-900 leading-none truncate">{adminName}</p>
+              <p className="text-[10px] text-gray-500 mt-1 truncate">{adminEmail}</p>
             </div>
           </div>
-          <button className="w-full bg-[#fee2e2] text-red-600 font-bold py-2.5 rounded-lg text-sm hover:bg-red-200 transition-colors">
+          <button 
+            onClick={handleLogout}
+            className="w-full bg-[#fee2e2] text-red-600 font-bold py-2.5 rounded-lg text-sm hover:bg-red-200 transition-colors"
+          >
             KELUAR
           </button>
         </div>
